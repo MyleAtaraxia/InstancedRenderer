@@ -11,6 +11,10 @@
 
 namespace godot {
 
+void add_setting(const String &name, const Variant &default_value,
+                 PropertyHint hint = PROPERTY_HINT_NONE,
+                 const String &hint_string = "");
+
 // Engine singleton owning one InstancedRenderer3D per batch key.
 class InstanceManager : public Object {
   GDCLASS(InstanceManager, Object)

@@ -29,9 +29,8 @@ void InstanceManager::_bind_methods() {
                               &InstanceManager::get_cell);
 }
 
-static void add_setting(const String &name, const Variant &default_value,
-                        PropertyHint hint = PROPERTY_HINT_NONE,
-                        const String &hint_string = "") {
+void add_setting(const String &name, const Variant &default_value,
+                 PropertyHint hint, const String &hint_string) {
   ProjectSettings *ps = ProjectSettings::get_singleton();
   if (!ps->has_setting(name)) {
     ps->set_setting(name, default_value);
