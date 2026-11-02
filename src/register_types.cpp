@@ -6,6 +6,7 @@
 #include "instanced_mesh_3d.h"
 #include "instanced_mesh_3d_gizmo.h"
 #include "instanced_node_2d.h"
+#include "instanced_node_2d_gizmo.h"
 #include "instanced_renderer_3d.h"
 
 #include <gdextension_interface.h>
@@ -23,7 +24,9 @@ void initialize_instanced_renderer_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
 		GDREGISTER_INTERNAL_CLASS(InstancedMesh3DGizmoPlugin);
 		GDREGISTER_INTERNAL_CLASS(InstancedMeshEditorPlugin);
+		GDREGISTER_INTERNAL_CLASS(InstancedNode2DEditorPlugin);
 		EditorPlugins::add_by_type<InstancedMeshEditorPlugin>();
+		EditorPlugins::add_by_type<InstancedNode2DEditorPlugin>();
 		return;
 	}
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
@@ -52,6 +55,7 @@ void initialize_instanced_renderer_module(ModuleInitializationLevel p_level) {
 
 void uninitialize_instanced_renderer_module(ModuleInitializationLevel p_level) {
 	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
+		EditorPlugins::remove_by_type<InstancedNode2DEditorPlugin>();
 		EditorPlugins::remove_by_type<InstancedMeshEditorPlugin>();
 		return;
 	}
