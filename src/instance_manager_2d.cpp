@@ -37,6 +37,9 @@ void InstanceManager2D::_bind_methods() {
 void InstanceManager2D::register_project_settings() {
   add_setting(SETTING_DEFAULT_CHUNK_SIZE, 256.0, PROPERTY_HINT_RANGE,
               "0,4096,1,or_greater,suffix:px");
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  add_setting(SETTING_CANVAS_ECHO, true);
+#endif
 }
 
 InstanceManager2D::InstanceManager2D() {
@@ -77,6 +80,9 @@ void InstanceManager2D::load_settings() {
   interpolation_mode = ps->get_setting(InstanceManager::SETTING_INTERPOLATION_MODE, 0);
   initial_capacity = ps->get_setting(InstanceManager::SETTING_INITIAL_CAPACITY, 16);
   sleep_after_frames = ps->get_setting(InstanceManager::SETTING_SLEEP_AFTER_FRAMES, 60);
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  canvas_echo = ps->get_setting(SETTING_CANVAS_ECHO, true);
+#endif
   bool interpolate = should_interpolate();
   for (auto &[key, r] : renderers) {
     r->set_interpolation(interpolate);
@@ -102,6 +108,13 @@ void InstanceManager2D::connect_signals() {
   if (!rs->is_connected("frame_pre_draw", on_draw)) {
     rs->connect("frame_pre_draw", on_draw);
   }
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  // After the draw it's a change like any other, so low processor mode redraws.
+  Callable on_drawn = callable_mp(this, &InstanceManager2D::flush_echoes);
+  if (!rs->is_connected("frame_post_draw", on_drawn)) {
+    rs->connect("frame_post_draw", on_drawn);
+  }
+#endif
   SceneTree *tree = Object::cast_to<SceneTree>(Engine::get_singleton()->get_main_loop());
   Callable on_physics = callable_mp(this, &InstanceManager2D::queue_physics_flush);
   if (tree && !tree->is_connected("physics_frame", on_physics)) {
@@ -395,6 +408,9 @@ void InstanceManager2D::forget_dirty(InstancedRenderer2D *renderer) {
   for (auto *list : {&dirty_frame, &dirty_physics}) {
     list->erase(std::remove(list->begin(), list->end(), renderer), list->end());
   }
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  echoes.erase(std::remove(echoes.begin(), echoes.end(), renderer), echoes.end());
+#endif
   forget_visible_counts(renderer);
 }
 
@@ -522,6 +538,16 @@ void InstanceManager2D::flush_frame() {
   drop_empty_renderers();
   update_views();
 }
+
+#ifdef INSTANCED_2D_CANVAS_ECHO
+void InstanceManager2D::flush_echoes() {
+  std::vector<InstancedRenderer2D *> batch;
+  batch.swap(echoes);
+  for (InstancedRenderer2D *r : batch) {
+    r->echo_upload();
+  }
+}
+#endif
 
 // Deferred so it runs after _physics_process, still inside the tick.
 void InstanceManager2D::queue_physics_flush() {

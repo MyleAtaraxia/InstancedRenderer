@@ -2,6 +2,7 @@
 extends SceneTree
 
 const RED := Color(1, 0, 0)
+const CANVAS_ECHO := "instanced_renderer/2d/repeat_uploads_for_motion_vectors"
 const BLUE := Color(0, 0, 1)
 const CLEAR := Color(0, 0, 0)
 
@@ -79,6 +80,7 @@ func run() -> void:
 	await test_pixels_per_meter(false)
 	await test_pixels_per_meter(true)
 	await test_mesh_scale_partial_update()
+	await test_last_partial_update_with_taa()
 	await test_texture_settings(false)
 	await test_texture_settings(true)
 	test_inspector_layout()
@@ -360,6 +362,46 @@ func test_mesh_scale_partial_update() -> void:
 	await frames()
 	root.use_taa = true
 	physics_interpolation = true
+
+
+# TAA's motion vectors hide every other multimesh write from the canvas, so a
+# move that stops must not end on the hidden one.
+func test_last_partial_update_with_taa() -> void:
+	if not ProjectSettings.has_setting(CANVAS_ECHO):
+		print("skip canvas echo not built in")
+		return
+	check(ProjectSettings.get_setting(CANVAS_ECHO), "the canvas echo defaults to on")
+	check(await stopped_moves_lost() == 0, "with the echo, every stopped move shows up")
+	ProjectSettings.set_setting(CANVAS_ECHO, false)
+	await frames()
+	check(await stopped_moves_lost() > 0, "the setting turns the echo off")
+	ProjectSettings.set_setting(CANVAS_ECHO, true)
+	await frames()
+	check(await stopped_moves_lost() == 0, "the setting turns the echo back on")
+
+
+func stopped_moves_lost() -> int:
+	physics_interpolation = false
+	var parent := new_parent()
+	var sprite := InstancedSprite2D.new()
+	sprite.texture = solid(Vector2i(16, 16), RED)
+	sprite.position = Vector2(140, 200)
+	parent.add_child(sprite)
+	await frames()
+	sprite.position = Vector2(150, 200) # waking is a full upload, so is changing chunk
+	await frames(1)
+	var target := sprite.position
+	var lost := 0
+	for i in 4:
+		target.x += 10
+		sprite.position = target
+		await frames(2)
+		if not is_color(pixel(target), RED):
+			lost += 1
+	parent.free()
+	await frames()
+	physics_interpolation = true
+	return lost
 
 
 func test_inspector_layout() -> void:

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import os
 
+# Taken out here so godot-cpp doesn't warn about it.
+canvas_echo = ARGUMENTS.pop("canvas_echo", "yes") != "no"
 env = SConscript("godot-cpp/SConstruct")
 
 # Set by CI; also covers the godot-cpp objects built above.
@@ -8,6 +10,9 @@ if os.environ.get("SCONS_CACHE"):
     CacheDir(os.environ["SCONS_CACHE"])
 
 env.Append(CPPPATH=["src/"])
+if not canvas_echo:
+    env = env.Clone()  # keeps godot-cpp from recompiling
+    env.Append(CPPDEFINES=["INSTANCED_2D_DISABLE_CANVAS_ECHO"])
 sources = Glob("src/*.cpp")
 
 output_dir = "demo/addons/instanced_renderer/bin"

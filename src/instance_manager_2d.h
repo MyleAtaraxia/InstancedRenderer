@@ -60,6 +60,10 @@ class InstanceManager2D : public Object {
   // Applied on the frame after the one they were queued on.
   std::vector<VisibleCount> counts_waiting;
   std::vector<VisibleCount> counts_due;
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  std::vector<InstancedRenderer2D *> echoes;
+  bool canvas_echo = true;
+#endif
   bool flush_queued = false;
   bool any_empty = false;
 
@@ -89,6 +93,9 @@ class InstanceManager2D : public Object {
   void update_views();
   void drop_empty_renderers();
   void flush_frame();
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  void flush_echoes();
+#endif
   void queue_physics_flush();
   void flush_physics();
   void flush(bool p_interpolated);
@@ -99,6 +106,10 @@ protected:
 public:
   static constexpr const char *SETTING_DEFAULT_CHUNK_SIZE =
       "instanced_renderer/batching/default_chunk_size_2d";
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  static constexpr const char *SETTING_CANVAS_ECHO =
+      "instanced_renderer/2d/repeat_uploads_for_motion_vectors";
+#endif
   static void register_project_settings();
 
   static InstanceManager2D *get_singleton() { return singleton; }
@@ -134,6 +145,10 @@ public:
   void queue_flush(InstancedRenderer2D *renderer);
   void queue_visible_count(InstancedRenderer2D *renderer, int count);
   void forget_visible_counts(InstancedRenderer2D *renderer);
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  void queue_echo(InstancedRenderer2D *renderer) { echoes.push_back(renderer); }
+  bool is_canvas_echo_enabled() const { return canvas_echo; }
+#endif
 };
 
 } // namespace godot

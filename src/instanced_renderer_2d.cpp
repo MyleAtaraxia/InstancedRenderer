@@ -175,6 +175,16 @@ void InstancedRenderer2D::flush() {
       }
     }
   }
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  if (!interpolated && (full || !dirty_slots.empty()) &&
+      InstanceManager2D::get_singleton()->is_canvas_echo_enabled()) {
+    if (!echo_full && echo_slots.empty()) {
+      InstanceManager2D::get_singleton()->queue_echo(this);
+    }
+    echo_full = echo_full || full;
+    echo_slots.insert(echo_slots.end(), dirty_slots.begin(), dirty_slots.end());
+  }
+#endif
   for (int i : dirty_slots) {
     slot_dirty[i] = 0;
   }
@@ -215,6 +225,28 @@ void InstancedRenderer2D::upload_slot(int render_index) {
       multimesh, render_index,
       read_transform(render_index).scaled_local(Vector2(mesh_scale, mesh_scale)));
 }
+
+#ifdef INSTANCED_2D_CANVAS_ECHO
+// With motion vectors on (TAA), the server writes each frame's changes to the
+// other half of the buffer, but the canvas only reads the first half. Repeating
+// them after the draw puts them in both.
+// shortcut: wasted when no viewport uses motion vectors, so it can be turned off;
+// drop this once the engine stops doing this for 2D multimeshes.
+void InstancedRenderer2D::echo_upload() {
+  if (echo_full) {
+    RenderingServer::get_singleton()->multimesh_set_buffer(multimesh, buffer);
+  } else {
+    int count = get_instance_count();
+    for (int i : echo_slots) {
+      if (i < count) {
+        upload_slot(i);
+      }
+    }
+  }
+  echo_full = false;
+  echo_slots.clear();
+}
+#endif
 
 void InstancedRenderer2D::set_visible_count(int count) {
   RenderingServer::get_singleton()->multimesh_set_visible_instances(multimesh, count);

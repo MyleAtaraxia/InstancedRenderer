@@ -10,6 +10,11 @@
 #include <cstdint>
 #include <vector>
 
+// Built in unless scons is run with canvas_echo=no; see echo_upload().
+#ifndef INSTANCED_2D_DISABLE_CANVAS_ECHO
+#define INSTANCED_2D_CANVAS_ECHO
+#endif
+
 namespace godot {
 
 class InstancedRenderer2D;
@@ -59,6 +64,11 @@ class InstancedRenderer2D {
   std::vector<uint8_t> slot_dirty; // per render index
   std::vector<int> dirty_slots;
   std::vector<int> reset_slots; // render indices to snap, not interpolate
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  bool echo_full = false;
+  std::vector<int> echo_slots;
+#endif
+
   void queue_flush();
   void mark_dirty(int render_index, bool reset);
   void reserve(int count);
@@ -94,6 +104,9 @@ public:
   void set_interpolation(bool p_interpolated);
   void set_on_screen(bool p_on_screen);
   void flush();
+#ifdef INSTANCED_2D_CANVAS_ECHO
+  void echo_upload();
+#endif
   void set_visible_count(int count);
 };
 
