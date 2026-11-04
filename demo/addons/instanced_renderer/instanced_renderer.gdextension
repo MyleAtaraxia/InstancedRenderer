@@ -8,6 +8,8 @@ reloadable = true
 
 InstancedMesh3D = "res://addons/instanced_renderer/icons/InstancedMesh3D.svg"
 InstancedMeshLOD = "res://addons/instanced_renderer/icons/InstancedMeshLOD.svg"
+InstancedSprite2D = "res://addons/instanced_renderer/icons/InstancedSprite2D.svg"
+InstancedMesh2D = "res://addons/instanced_renderer/icons/InstancedMesh2D.svg"
 
 [libraries]
 
