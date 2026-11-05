@@ -5,6 +5,7 @@
 #include "godot_cpp/classes/scene_tree.hpp"
 #include "godot_cpp/classes/viewport.hpp"
 #include "godot_cpp/core/print_string.hpp"
+#include "godot_cpp/variant/utility_functions.hpp"
 #include "godot_cpp/variant/callable_method_pointer.hpp"
 #include "instance_manager.h"
 #include <algorithm>
@@ -107,6 +108,11 @@ void InstanceManager2D::connect_signals() {
   RenderingServer *rs = RenderingServer::get_singleton();
   if (!rs->is_connected("frame_pre_draw", on_draw)) {
     rs->connect("frame_pre_draw", on_draw);
+    if (rs->get_current_rendering_driver_name() == "d3d12") {
+      UtilityFunctions::push_warning(
+          "InstancedRenderer: D3D12 uses far more memory than Vulkan for many "
+          "small batches. Raise chunk_size or switch to Vulkan if memory is tight.");
+    }
   }
 #ifdef INSTANCED_2D_CANVAS_ECHO
   // After the draw it's a change like any other, so low processor mode redraws.
