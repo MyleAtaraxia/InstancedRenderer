@@ -3,6 +3,7 @@
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/mesh_instance2d.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
+#include <godot_cpp/classes/rendering_server.hpp>
 #include <godot_cpp/classes/sprite2d.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
@@ -72,6 +73,13 @@ void InstancedNode2D::_notification(int p_what) {
   case NOTIFICATION_ENTER_TREE:
     set_notify_local_transform(true);
     register_instance();
+    break;
+  case NOTIFICATION_ENTER_CANVAS:
+    canvas_attached = true; // the engine just parented it
+    update_canvas_attachment();
+    break;
+  case NOTIFICATION_CHILD_ORDER_CHANGED:
+    update_canvas_attachment();
     break;
   case NOTIFICATION_READY:
     update_picker();
@@ -159,6 +167,23 @@ void InstancedNode2D::update_picker() {
   picker->set_self_modulate(Color(1, 1, 1, 0));
   add_child(picker, false, INTERNAL_MODE_BACK);
   picker->set_owner(this);
+}
+
+// Unlike a Node3D, every Node2D has a server item, and the canvas cull walks each
+// one even when it's empty. Instances draw under the parent's item, so this one
+// only has to stay in the tree to carry children.
+void InstancedNode2D::update_canvas_attachment() {
+  CanvasItem *parent = Object::cast_to<CanvasItem>(get_parent());
+  if (!is_inside_tree() || !parent || is_set_as_top_level() ||
+      Engine::get_singleton()->is_editor_hint()) {
+    return;
+  }
+  bool attach = get_child_count(true) > 0;
+  if (attach != canvas_attached) {
+    canvas_attached = attach;
+    RenderingServer::get_singleton()->canvas_item_set_parent(
+        get_canvas_item(), attach ? parent->get_canvas_item() : RID());
+  }
 }
 
 // CanvasItem's *_in_tree getters aren't exposed. Its enums match the

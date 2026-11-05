@@ -77,6 +77,7 @@ func run() -> void:
 	await test_sleep()
 	await test_swap_remove_does_not_blink()
 	await test_nodes()
+	await test_node_children()
 	await test_pixels_per_meter(false)
 	await test_pixels_per_meter(true)
 	await test_mesh_scale_partial_update()
@@ -414,6 +415,63 @@ func test_inspector_layout() -> void:
 	for hidden in ["material", "use_parent_material", "modulate", "self_modulate", "z_index", "z_as_relative"]:
 		check(not shown.has(hidden), "inherited %s is hidden" % hidden)
 	node.free()
+
+
+# Childless nodes leave the canvas tree, which mustn't lose anything under them.
+func test_node_children() -> void:
+	var parent := new_parent()
+	var sprite := InstancedSprite2D.new()
+	sprite.texture = solid(Vector2i(16, 16), RED)
+	sprite.position = Vector2(100, 100)
+	parent.add_child(sprite)
+	await frames()
+	var child := Sprite2D.new()
+	child.texture = solid(Vector2i(16, 16), BLUE)
+	child.position = Vector2(0, 50)
+	sprite.add_child(child)
+	await frames()
+	check(is_color(pixel(Vector2(100, 150)), BLUE), "a child added later draws")
+	sprite.position = Vector2(200, 100)
+	await frames()
+	check(is_color(pixel(Vector2(200, 150)), BLUE), "the child follows its node")
+	check(is_color(pixel(Vector2(200, 100)), RED), "the instance follows too")
+	sprite.remove_child(child)
+	await frames()
+	check(is_color(pixel(Vector2(200, 100)), RED), "losing the child keeps the instance")
+	sprite.add_child(child)
+	await frames()
+	check(is_color(pixel(Vector2(200, 150)), BLUE), "a child can come back")
+
+	var other := new_parent()
+	sprite.reparent(other, false)
+	sprite.position = Vector2(300, 100)
+	await frames()
+	check(is_color(pixel(Vector2(300, 150)), BLUE), "a child survives a reparent")
+	sprite.hide()
+	await frames()
+	check(is_color(pixel(Vector2(300, 150)), CLEAR), "hiding the node hides the child")
+	sprite.show()
+	child.free()
+	await frames()
+	check(is_color(pixel(Vector2(300, 100)), RED), "a freed child keeps the instance")
+
+	var loose := Sprite2D.new()
+	loose.texture = solid(Vector2i(16, 16), BLUE)
+	var top := InstancedSprite2D.new()
+	top.texture = sprite.texture
+	top.position = Vector2(400, 100)
+	other.add_child(top)
+	await frames()
+	top.top_level = true
+	top.add_child(loose)
+	await frames()
+	check(is_color(pixel(Vector2(400, 100)), BLUE), "a top level node keeps its child")
+	top.top_level = false
+	await frames()
+	check(is_color(pixel(Vector2(400, 100)), BLUE), "leaving top level keeps the child")
+	parent.free()
+	other.free()
+	await frames()
 
 
 func test_nodes() -> void:

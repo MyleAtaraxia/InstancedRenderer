@@ -22,11 +22,13 @@ class InstancedNode2D : public Node2D {
   Node2D *picker = nullptr; // editor only
   int used_filter = 0;
   int used_repeat = 0;
+  bool canvas_attached = true;
 
   void register_instance();
   void unregister_instance();
   void reregister();
   void update_picker();
+  void update_canvas_attachment();
   int resolve_texture_filter() const;
   int resolve_texture_repeat() const;
 
