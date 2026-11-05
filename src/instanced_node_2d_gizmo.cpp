@@ -10,6 +10,11 @@ namespace godot {
 void InstancedNode2DEditorPlugin::_notification(int p_what) {
   if (p_what == NOTIFICATION_ENTER_TREE) {
     set_force_draw_over_forwarding_enabled();
+    export_plugin.instantiate();
+    add_export_plugin(export_plugin);
+  } else if (p_what == NOTIFICATION_EXIT_TREE) {
+    remove_export_plugin(export_plugin);
+    export_plugin.unref();
   }
 }
 

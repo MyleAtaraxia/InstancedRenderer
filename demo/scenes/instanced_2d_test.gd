@@ -78,6 +78,7 @@ func run() -> void:
 	await test_swap_remove_does_not_blink()
 	await test_nodes()
 	await test_node_children()
+	await test_container()
 	await test_pixels_per_meter(false)
 	await test_pixels_per_meter(true)
 	await test_mesh_scale_partial_update()
@@ -472,6 +473,54 @@ func test_node_children() -> void:
 	parent.free()
 	other.free()
 	await frames()
+
+
+func test_container() -> void:
+	var white := solid(Vector2i(16, 16), Color.WHITE)
+	var scene := InstancedContainer2D.new()
+	scene.position = Vector2(50, 0)
+	var add := func(at: Vector2, is_static: bool, y_sorted: bool, tint: Color) -> InstancedSprite2D:
+		var sprite := InstancedSprite2D.new()
+		sprite.texture = white
+		sprite.position = at
+		sprite.is_static = is_static
+		sprite.y_sorted = y_sorted
+		sprite.instance_modulate = tint
+		scene.add_child(sprite)
+		sprite.owner = scene
+		return sprite
+	add.call(Vector2(50, 100), true, false, RED)
+	add.call(Vector2(150, 100), true, true, RED)
+	var scaled: InstancedSprite2D = add.call(Vector2(250, 100), true, false, BLUE)
+	scaled.scale = Vector2(3, 3)
+	add.call(Vector2(350, 100), false, false, BLUE)
+	var unseen: InstancedSprite2D = add.call(Vector2(450, 100), true, false, RED)
+	unseen.visible = false
+	check(scene.bake() == 3, "only plain visible static children bake")
+	check(scene.get_child_count() == 2, "baked children are gone")
+
+	var packed := PackedScene.new()
+	packed.pack(scene)
+	scene.free()
+	var path := "user://baked_container.scn"
+	check(ResourceSaver.save(packed, path) == OK, "a baked scene saves")
+	var saved: PackedScene = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	var loaded: InstancedContainer2D = saved.instantiate()
+	check(loaded.get_child_count() == 2, "baked children stay gone after loading")
+	root.add_child(loaded)
+	await frames()
+	check(is_color(pixel(Vector2(100, 100)), RED), "a chunked baked instance draws")
+	check(is_color(pixel(Vector2(200, 100)), RED), "a y_sorted baked instance draws")
+	check(is_color(pixel(Vector2(320, 100)), BLUE), "baking keeps scale and modulate")
+	check(is_color(pixel(Vector2(400, 100)), BLUE), "non-static children keep working")
+	check(is_color(pixel(Vector2(500, 100)), CLEAR), "hidden children stay hidden")
+	check(loaded.baked.is_empty(), "the container drops its copy once spawned")
+	loaded.visible = false
+	await frames()
+	check(is_color(pixel(Vector2(100, 100)), CLEAR), "hiding the container hides its instances")
+	loaded.free()
+	await frames()
+	check(InstanceManager2D.get_rendered_item_count() == 0, "freeing the container frees its instances")
 
 
 func test_nodes() -> void:
