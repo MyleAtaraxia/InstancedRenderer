@@ -77,6 +77,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fetch GDProgress master
+        run: git submodule update --init --remote demo/addons/instanced_renderer/GDProgress
+
       - name: Drop committed binaries
         run: rm -f demo/addons/instanced_renderer/bin/*.dll demo/addons/instanced_renderer/bin/*.so
 
@@ -89,7 +92,7 @@ jobs:
       - name: Package addon
         run: |
           cp LICENSE.md demo/addons/instanced_renderer/
-          cd demo && zip -r "../instanced_renderer.zip" addons/instanced_renderer -x "*.import"
+          cd demo && zip -r "../instanced_renderer.zip" addons/instanced_renderer -x "*.import" "addons/instanced_renderer/GDProgress/.git"
 
       - name: Create release
         env:

@@ -12,7 +12,9 @@ void InstancedNode2DEditorPlugin::_notification(int p_what) {
     set_force_draw_over_forwarding_enabled();
     export_plugin.instantiate();
     add_export_plugin(export_plugin);
+    InstancedBake2D::set_progress_task(true);
   } else if (p_what == NOTIFICATION_EXIT_TREE) {
+    InstancedBake2D::set_progress_task(false);
     remove_export_plugin(export_plugin);
     export_plugin.unref();
   }
