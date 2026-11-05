@@ -2,7 +2,7 @@
 
 #include "godot_cpp/classes/control.hpp"
 #include "godot_cpp/classes/editor_plugin.hpp"
-#include "instanced_container_2d.h"
+#include "instanced_bake_2d.h"
 
 namespace godot {
 
@@ -10,7 +10,7 @@ namespace godot {
 class InstancedNode2DEditorPlugin : public EditorPlugin {
   GDCLASS(InstancedNode2DEditorPlugin, EditorPlugin)
 
-  Ref<InstancedContainerExportPlugin> export_plugin;
+  Ref<InstancedBakeExportPlugin> export_plugin;
 
 protected:
   static void _bind_methods() {}

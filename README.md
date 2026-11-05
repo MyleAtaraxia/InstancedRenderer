@@ -24,7 +24,7 @@ scons
 Add an `InstancedMesh3D` node and set its `mesh`. Nodes with matching settings
 in the same chunk share one draw call.
 
-- `is_static`: the node frees itself at runtime; its instance stays drawn.
+- `is_static`: the node frees itself at runtime; its instance stays drawn. In 2D, exports replace it with packed transforms instead, unless `instanced_renderer/2d/bake_static_on_export` is off.
 - `chunk_size`: batching grid size; also how fine culling and LOD are.
 - `lods`: `InstancedMeshLOD` entries (`mesh`, `distance`); `mesh` is level 0.
 - `visibility_range_end`: stop drawing beyond this distance.

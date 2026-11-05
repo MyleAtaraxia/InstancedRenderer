@@ -3,7 +3,7 @@
 #include "instance_definition_2d.h"
 #include "instance_manager.h"
 #include "instance_manager_2d.h"
-#include "instanced_container_2d.h"
+#include "instanced_bake_2d.h"
 #include "instanced_mesh_3d.h"
 #include "instanced_mesh_3d_gizmo.h"
 #include "instanced_node_2d.h"
@@ -26,7 +26,7 @@ void initialize_instanced_renderer_module(ModuleInitializationLevel p_level) {
 		GDREGISTER_INTERNAL_CLASS(InstancedMesh3DGizmoPlugin);
 		GDREGISTER_INTERNAL_CLASS(InstancedMeshEditorPlugin);
 		GDREGISTER_INTERNAL_CLASS(InstancedNode2DEditorPlugin);
-		GDREGISTER_INTERNAL_CLASS(InstancedContainerExportPlugin);
+		GDREGISTER_INTERNAL_CLASS(InstancedBakeExportPlugin);
 		EditorPlugins::add_by_type<InstancedMeshEditorPlugin>();
 		EditorPlugins::add_by_type<InstancedNode2DEditorPlugin>();
 		return;
@@ -43,7 +43,7 @@ void initialize_instanced_renderer_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(InstancedNode2D);
 	GDREGISTER_CLASS(InstancedSprite2D);
 	GDREGISTER_CLASS(InstancedMesh2D);
-	GDREGISTER_CLASS(InstancedContainer2D);
+	GDREGISTER_INTERNAL_CLASS(InstancedBake2D);
 	GDREGISTER_CLASS(InstanceManager2D);
 
 	InstanceManager::register_project_settings();

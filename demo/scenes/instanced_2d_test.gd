@@ -78,7 +78,7 @@ func run() -> void:
 	await test_swap_remove_does_not_blink()
 	await test_nodes()
 	await test_node_children()
-	await test_container()
+	await test_static_bake()
 	await test_pixels_per_meter(false)
 	await test_pixels_per_meter(true)
 	await test_mesh_scale_partial_update()
@@ -475,9 +475,9 @@ func test_node_children() -> void:
 	await frames()
 
 
-func test_container() -> void:
+func test_static_bake() -> void:
 	var white := solid(Vector2i(16, 16), Color.WHITE)
-	var scene := InstancedContainer2D.new()
+	var scene := Node2D.new()
 	scene.position = Vector2(50, 0)
 	var add := func(at: Vector2, is_static: bool, y_sorted: bool, tint: Color) -> InstancedSprite2D:
 		var sprite := InstancedSprite2D.new()
@@ -496,17 +496,32 @@ func test_container() -> void:
 	add.call(Vector2(350, 100), false, false, BLUE)
 	var unseen: InstancedSprite2D = add.call(Vector2(450, 100), true, false, RED)
 	unseen.visible = false
-	check(scene.bake() == 3, "only plain visible static children bake")
-	check(scene.get_child_count() == 2, "baked children are gone")
+	var grouped: InstancedSprite2D = add.call(Vector2(550, 100), true, false, BLUE)
+	grouped.add_to_group("kept", true)
+	var unique: InstancedSprite2D = add.call(Vector2(650, 100), true, false, BLUE)
+	unique.unique_name_in_owner = true
+	var nested := Node2D.new()
+	nested.position = Vector2(0, 100)
+	nested.name = "Nested"
+	scene.add_child(nested)
+	nested.owner = scene
+	var inner: InstancedSprite2D = add.call(Vector2(50, 100), true, false, BLUE)
+	inner.reparent(nested, false)
+	inner.owner = scene
+	var bake_scene := func(node: Node) -> int:
+		return ClassDB.class_call_static("InstancedBake2D", "bake_scene", node)
+	check(bake_scene.call(scene) == 4, "only plain visible static nodes bake")
+	check(scene.get_child_count() == 6, "baked nodes make way for one bake per parent")
+	check(nested.get_child_count() == 1, "a nested parent gets its own bake")
 
 	var packed := PackedScene.new()
 	packed.pack(scene)
 	scene.free()
-	var path := "user://baked_container.scn"
+	var path := "user://baked_scene.scn"
 	check(ResourceSaver.save(packed, path) == OK, "a baked scene saves")
 	var saved: PackedScene = ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
-	var loaded: InstancedContainer2D = saved.instantiate()
-	check(loaded.get_child_count() == 2, "baked children stay gone after loading")
+	var loaded: Node2D = saved.instantiate()
+	check(loaded.get_child_count() == 6, "baked nodes stay gone after loading")
 	root.add_child(loaded)
 	await frames()
 	check(is_color(pixel(Vector2(100, 100)), RED), "a chunked baked instance draws")
@@ -514,13 +529,15 @@ func test_container() -> void:
 	check(is_color(pixel(Vector2(320, 100)), BLUE), "baking keeps scale and modulate")
 	check(is_color(pixel(Vector2(400, 100)), BLUE), "non-static children keep working")
 	check(is_color(pixel(Vector2(500, 100)), CLEAR), "hidden children stay hidden")
-	check(loaded.baked.is_empty(), "the container drops its copy once spawned")
+	check(is_color(pixel(Vector2(100, 200)), BLUE), "a nested baked instance keeps its parent")
+	check(loaded.get_node("Nested").get_child_count() == 0, "bakes free themselves once spawned")
+	check(loaded.get_child_count() == 2, "only the nested parent and the non-static node remain")
 	loaded.visible = false
 	await frames()
-	check(is_color(pixel(Vector2(100, 100)), CLEAR), "hiding the container hides its instances")
+	check(is_color(pixel(Vector2(100, 100)), CLEAR), "hiding the parent hides its instances")
 	loaded.free()
 	await frames()
-	check(InstanceManager2D.get_rendered_item_count() == 0, "freeing the container frees its instances")
+	check(InstanceManager2D.get_rendered_item_count() == 0, "freeing the parent frees its instances")
 
 
 func test_nodes() -> void:

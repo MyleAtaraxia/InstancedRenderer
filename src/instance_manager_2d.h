@@ -106,6 +106,8 @@ protected:
 public:
   static constexpr const char *SETTING_DEFAULT_CHUNK_SIZE =
       "instanced_renderer/batching/default_chunk_size_2d";
+  static constexpr const char *SETTING_BAKE_STATIC =
+      "instanced_renderer/2d/bake_static_on_export";
 #ifdef INSTANCED_2D_CANVAS_ECHO
   static constexpr const char *SETTING_CANVAS_ECHO =
       "instanced_renderer/2d/repeat_uploads_for_motion_vectors";
