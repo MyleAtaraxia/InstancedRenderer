@@ -21,7 +21,7 @@ class InstanceDefinition2D : public Resource {
   Color modulate = Color(1, 1, 1, 1);
   bool y_sorted = false;
   int z_index = 0;
-  real_t chunk_size = 256.0;
+  real_t chunk_size = 512.0;
   real_t pixels_per_meter = 1.0; // meshes only
   int texture_filter = 0; // RenderingServer::CanvasItemTextureFilter
   int texture_repeat = 0; // RenderingServer::CanvasItemTextureRepeat

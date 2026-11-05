@@ -35,7 +35,7 @@ void InstanceManager2D::_bind_methods() {
 }
 
 void InstanceManager2D::register_project_settings() {
-  add_setting(SETTING_DEFAULT_CHUNK_SIZE, 256.0, PROPERTY_HINT_RANGE,
+  add_setting(SETTING_DEFAULT_CHUNK_SIZE, 512.0, PROPERTY_HINT_RANGE,
               "0,4096,1,or_greater,suffix:px");
 #ifdef INSTANCED_2D_CANVAS_ECHO
   add_setting(SETTING_CANVAS_ECHO, true);

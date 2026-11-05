@@ -11,7 +11,7 @@ namespace godot {
 
 InstancedNode2D::InstancedNode2D() {
   chunk_size = ProjectSettings::get_singleton()->get_setting(
-      InstanceManager2D::SETTING_DEFAULT_CHUNK_SIZE, 256.0);
+      InstanceManager2D::SETTING_DEFAULT_CHUNK_SIZE, 512.0);
 }
 
 void InstancedNode2D::_bind_methods() {

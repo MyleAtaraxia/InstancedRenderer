@@ -9,7 +9,7 @@ namespace godot {
 // Definitions left at the default follow the project setting; set ones are saved.
 InstanceDefinition2D::InstanceDefinition2D() {
   chunk_size = ProjectSettings::get_singleton()->get_setting(
-      InstanceManager2D::SETTING_DEFAULT_CHUNK_SIZE, 256.0);
+      InstanceManager2D::SETTING_DEFAULT_CHUNK_SIZE, 512.0);
 }
 
 void InstanceDefinition2D::_bind_methods() {
