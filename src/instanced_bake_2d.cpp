@@ -175,7 +175,6 @@ void InstancedBakeExportPlugin::_export_begin(const PackedStringArray &p_feature
   }
   progress = InstancedBake2D::progress_script();
   if (progress.is_valid()) {
-    progress->call("begin_run");
     add_scene_bytes(EditorInterface::get_singleton()->get_resource_filesystem()->get_filesystem());
   }
 }
@@ -183,7 +182,6 @@ void InstancedBakeExportPlugin::_export_begin(const PackedStringArray &p_feature
 void InstancedBakeExportPlugin::end_progress() {
   if (progress.is_valid()) {
     progress->call("finish", PROGRESS_TASK);
-    progress->call("end_run");
     progress.unref();
   }
 }

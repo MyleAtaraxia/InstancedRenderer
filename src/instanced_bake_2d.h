@@ -53,7 +53,6 @@ public:
   void _export_begin(const PackedStringArray &p_features, bool p_is_debug,
                      const String &p_path, uint32_t p_flags) override;
   void _end_customize_scenes() override { end_progress(); }
-  void _export_end() override { end_progress(); } // the only hook a failed export reaches
 };
 
 } // namespace godot
