@@ -17,24 +17,21 @@ void SineGrid::configure(const Dictionary &params) {
   amplitude = params.get("amplitude", amplitude);
   frequency = params.get("frequency", frequency);
   speed = params.get("speed", speed);
-  transforms.resize(get_count() * 12);
+  transforms.resize(get_count());
 }
 
-PackedFloat32Array SineGrid::step(double time) {
-  float *w = transforms.ptrw();
+TypedArray<Transform3D> SineGrid::step(double time) {
+  int i = 0;
   real_t phase = speed * time;
   real_t x0 = -(size_x - 1) * spacing * 0.5;
   real_t z0 = -(size_z - 1) * spacing * 0.5;
   for (int z = 0; z < size_z; z++) {
     real_t pz = z0 + z * spacing;
     real_t wave_z = std::sin(frequency * pz + phase);
-    for (int x = 0; x < size_x; x++, w += 12) {
+    for (int x = 0; x < size_x; x++, i++) {
       real_t px = x0 + x * spacing;
       real_t y = amplitude * std::sin(frequency * px + phase) * wave_z;
-      // Identity basis rows, each followed by its origin component.
-      w[0] = 1, w[1] = 0, w[2] = 0, w[3] = px;
-      w[4] = 0, w[5] = 1, w[6] = 0, w[7] = y;
-      w[8] = 0, w[9] = 0, w[10] = 1, w[11] = pz;
+      transforms[i] = Transform3D(Basis(), Vector3(px, y, pz));
     }
   }
   return transforms;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "godot_cpp/classes/canvas_item.hpp"
-#include "godot_cpp/variant/packed_float32_array.hpp"
+#include "godot_cpp/variant/typed_array.hpp"
 #include "godot_cpp/variant/packed_int64_array.hpp"
 #include "instanced_renderer_2d.h"
 #include <map>
@@ -124,10 +124,9 @@ public:
                        const Ref<InstanceDefinition2D> &definition,
                        const Transform2D &transform, bool is_static = false);
   void update_instance(int64_t id, const Transform2D &transform);
-  // 8 floats per id, MultiMesh layout: each basis row, padded, followed by its
-  // origin component.
+  // One transform per id.
   void update_instances(const PackedInt64Array &ids,
-                        const PackedFloat32Array &transforms);
+                        const TypedArray<Transform2D> &transforms);
   void remove_instance(int64_t id);
   void reset_instance_interpolation(int64_t id);
   bool is_instance_valid(int64_t id) const;

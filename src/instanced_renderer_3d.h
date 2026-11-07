@@ -8,6 +8,7 @@
 #include "godot_cpp/variant/packed_int64_array.hpp"
 #include "godot_cpp/variant/rid.hpp"
 #include "godot_cpp/variant/transform3d.hpp"
+#include "godot_cpp/variant/typed_array.hpp"
 #include <cstdint>
 #include <utility>
 #include <vector>
@@ -83,10 +84,9 @@ public:
 
   int64_t add_instance(const Transform3D &transform);
   void update_instance(int64_t id, const Transform3D &transform);
-  // 12 floats per id, MultiMesh layout: each basis row followed by its origin
-  // component.
+  // One transform per id.
   void update_instances(const PackedInt64Array &ids,
-                        const PackedFloat32Array &transforms);
+                        const TypedArray<Transform3D> &transforms);
   void remove_instance(int64_t id);
   void reset_instance_interpolation(int64_t id);
   bool is_instance_valid(int64_t id) const;

@@ -204,10 +204,10 @@ func test_ids() -> void:
 	check(is_color(pixel(Vector2(300, 300)), RED), "swapped instance still updates")
 
 	var ids := PackedInt64Array([b])
-	var floats := PackedFloat32Array([1, 0, 0, 400, 0, 1, 0, 300])
-	InstanceManager2D.update_instances(ids, floats)
+	var transforms: Array[Transform2D] = [Transform2D(0, Vector2(400, 300))]
+	InstanceManager2D.update_instances(ids, transforms)
 	await frames()
-	check(is_color(pixel(Vector2(400, 300)), RED), "update_instances uses the multimesh layout")
+	check(is_color(pixel(Vector2(400, 300)), RED), "update_instances applies the transform")
 	parent.free()
 	await frames()
 

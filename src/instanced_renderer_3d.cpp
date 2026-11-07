@@ -303,22 +303,19 @@ void InstancedRenderer3D::update_instance(int64_t id,
 }
 
 void InstancedRenderer3D::update_instances(
-    const PackedInt64Array &ids, const PackedFloat32Array &transforms) {
-  ERR_FAIL_COND_MSG(transforms.size() != ids.size() * FLOATS_PER_INSTANCE,
-                    "update_instances: need 12 floats per id.");
+    const PackedInt64Array &ids, const TypedArray<Transform3D> &transforms) {
+  ERR_FAIL_COND_MSG(transforms.size() != ids.size(),
+                    "update_instances: need one transform per id.");
   const int64_t *id = ids.ptr();
-  const float *src = transforms.ptr();
-  float *dst = buffer.ptrw();
   int invalid = 0;
-  for (int64_t i = 0; i < ids.size(); i++, src += FLOATS_PER_INSTANCE) {
+  for (int64_t i = 0; i < ids.size(); i++) {
     int slot = slot_of(id[i]);
     if (slot < 0) {
       invalid++;
       continue;
     }
     int render_index = records[slot].render_index;
-    std::copy_n(src, FLOATS_PER_INSTANCE,
-                dst + render_index * FLOATS_PER_INSTANCE);
+    write_transform(render_index, transforms[i]);
     mark_dirty(render_index, false);
   }
   if (invalid > 0) {

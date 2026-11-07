@@ -308,19 +308,18 @@ void InstanceManager2D::update_instance(int64_t id, const Transform2D &transform
 }
 
 void InstanceManager2D::update_instances(const PackedInt64Array &ids,
-                                         const PackedFloat32Array &transforms) {
-  ERR_FAIL_COND_MSG(transforms.size() != ids.size() * 8,
-                    "update_instances: need 8 floats per id.");
+                                         const TypedArray<Transform2D> &transforms) {
+  ERR_FAIL_COND_MSG(transforms.size() != ids.size(),
+                    "update_instances: need one transform per id.");
   const int64_t *id = ids.ptr();
-  const float *r = transforms.ptr();
   int invalid = 0;
-  for (int64_t i = 0; i < ids.size(); i++, r += 8) {
+  for (int64_t i = 0; i < ids.size(); i++) {
     int index = slot_of(id[i]);
     if (index < 0) {
       invalid++;
       continue;
     }
-    update_slot(index, Transform2D(r[0], r[4], r[1], r[5], r[3], r[7]));
+    update_slot(index, transforms[i]);
   }
   if (invalid > 0) {
     print_error("update_instances: skipped invalid or stale ids: ", invalid);
