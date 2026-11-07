@@ -2,3 +2,7 @@
 	path = godot-cpp
 	url = https://github.com/godotengine/godot-cpp
 	branch = 4.4
+[submodule "demo/addons/instanced_renderer/GDProgress"]
+	path = demo/addons/instanced_renderer/GDProgress
+	url = https://github.com/MyleAtaraxia/GDProgress.git
+	branch = master
