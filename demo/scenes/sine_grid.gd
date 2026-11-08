@@ -19,7 +19,6 @@ extends Node3D
 
 var wave := SineGrid.new()
 var ids := PackedInt64Array()
-var renderer: InstancedRenderer3D
 var time := 0.0
 var since_update := 0.0
 var wave_ms := 0.0
@@ -31,7 +30,7 @@ var gpu_ms := 0.0
 func _ready() -> void:
 	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
 	if interpolate:
-		get_tree().physics_interpolation = true  # before get_renderer(), which reads it
+		get_tree().physics_interpolation = true  # before add_instance(), which reads it
 		if updates_per_second > 0:
 			Engine.physics_ticks_per_second = updates_per_second
 	wave.configure({
@@ -44,16 +43,18 @@ func _ready() -> void:
 	material.albedo_color = Color("#fc7f7f")
 	material.roughness = 0.55
 
-	renderer = InstanceManager.get_renderer(get_world_3d(), box, material)
-	renderer.set_estimated_instance_count(wave.get_count())
-	for i in wave.get_count():
-		ids.append(renderer.add_instance(Transform3D()))
-	renderer.update_instances(ids, wave.step(time))
+	var definition := InstanceDefinition3D.new()
+	definition.mesh = box
+	definition.material = material
+
+	var start: Array[Transform3D] = wave.step(time)
+	for t in start:
+		ids.append(InstanceManager3D.add_instance(get_world_3d(), definition, t))
 
 
 func _exit_tree() -> void:
-	if renderer:
-		renderer.clear_instances()
+	for id in ids:
+		InstanceManager3D.remove_instance(id)
 
 func _physics_process(delta: float) -> void:
 	pivot.rotate_y(delta * 0.1)
@@ -66,7 +67,7 @@ func _physics_process(delta: float) -> void:
 	if since_update >= interval:
 		since_update = fmod(since_update, interval) if interval > 0.0 else 0.0
 		var t0 := Time.get_ticks_usec()
-		renderer.update_instances(ids, wave.step(time))
+		InstanceManager3D.update_instances(ids, wave.step(time))
 		wave_ms = lerpf(wave_ms, (Time.get_ticks_usec() - t0) / 1000.0, 0.1)
 
 

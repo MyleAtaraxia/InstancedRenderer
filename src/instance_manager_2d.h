@@ -3,6 +3,8 @@
 #include "godot_cpp/classes/canvas_item.hpp"
 #include "godot_cpp/variant/typed_array.hpp"
 #include "godot_cpp/variant/packed_int64_array.hpp"
+#include "godot_cpp/variant/packed_float32_array.hpp"
+#include "godot_cpp/variant/packed_vector2_array.hpp"
 #include "instanced_renderer_2d.h"
 #include <map>
 #include <memory>
@@ -67,7 +69,7 @@ class InstanceManager2D : public Object {
   bool flush_queued = false;
   bool any_empty = false;
 
-  // Shared with InstanceManager's settings, reloaded live
+  // Shared settings, reloaded live
   int interpolation_mode = 0;
   int initial_capacity = 16;
   int sleep_after_frames = 60;
@@ -105,7 +107,7 @@ protected:
 
 public:
   static constexpr const char *SETTING_DEFAULT_CHUNK_SIZE =
-      "instanced_renderer/batching/default_chunk_size_2d";
+      "instanced_renderer/2d/default_chunk_size";
   static constexpr const char *SETTING_BAKE_STATIC =
       "instanced_renderer/2d/bake_static_on_export";
 #ifdef INSTANCED_2D_CANVAS_ECHO
@@ -127,6 +129,16 @@ public:
   // One transform per id.
   void update_instances(const PackedInt64Array &ids,
                         const TypedArray<Transform2D> &transforms);
+  // One position per id; keeps each instance's rotation and scale.
+  void update_instance_positions(const PackedInt64Array &ids,
+                                 const PackedVector2Array &positions);
+  // One rotation in radians per id; keeps each instance's position and scale.
+  void update_instance_rotations(const PackedInt64Array &ids,
+                                 const PackedFloat32Array &rotations);
+  // 8 floats per id, MultiMesh TRANSFORM_2D layout:
+  // x.x, y.x, 0, origin.x, x.y, y.y, 0, origin.y.
+  void update_instances_packed(const PackedInt64Array &ids,
+                               const PackedFloat32Array &transforms);
   void remove_instance(int64_t id);
   void reset_instance_interpolation(int64_t id);
   bool is_instance_valid(int64_t id) const;

@@ -2,13 +2,11 @@
 
 #include "godot_cpp/classes/node3d.hpp"
 #include "godot_cpp/variant/typed_array.hpp"
-#include "godot_cpp/variant/vector3i.hpp"
-#include "instanced_mesh_lod.h"
-#include "instanced_renderer_3d.h"
-
+#include "instance_definition_3d.h"
 
 namespace godot {
 
+// One instance drawn through InstanceManager3D; equal nodes share a batch.
 class InstancedMesh3D : public Node3D {
   GDCLASS(InstancedMesh3D, Node3D)
 
@@ -20,19 +18,11 @@ class InstancedMesh3D : public Node3D {
   uint32_t layers = 1;
   real_t visibility_range_end = 0; // 0 = always drawn
   TypedArray<InstancedMeshLOD> lods;
-
-  bool sleeping = false;
-  bool sleep_watched = false;
-  uint64_t last_moved_frame = 0;
-
-  Ref<InstancedRenderer3D> renderer;
   int64_t instance_id = -1;
-  Vector3i cell; // chunk the instance lives in
 
   void register_instance();
   void unregister_instance();
   void reregister();
-  void mark_moved();
 
 protected:
   static void _bind_methods();
@@ -40,8 +30,7 @@ protected:
 
 public:
   InstancedMesh3D();
-  // Returns true once the node no longer needs watching.
-  bool update_sleep(uint64_t now);
+
   void set_mesh(const Ref<Mesh> &p_mesh);
   Ref<Mesh> get_mesh() const;
   void set_material(const Ref<Material> &p_material);
@@ -59,4 +48,5 @@ public:
   void set_lods(const TypedArray<InstancedMeshLOD> &p_lods);
   TypedArray<InstancedMeshLOD> get_lods() const;
 };
+
 } // namespace godot

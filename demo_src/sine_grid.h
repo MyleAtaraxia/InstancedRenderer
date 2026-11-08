@@ -8,7 +8,7 @@
 namespace godot {
 
 // Grid of boxes at y = amplitude * sin(f*x + speed*t) * sin(f*z + speed*t).
-// step() returns one transform per box, for InstancedRenderer3D.update_instances().
+// step() returns one transform per box, for InstanceManager3D.update_instances().
 class SineGrid : public RefCounted {
   GDCLASS(SineGrid, RefCounted)
 

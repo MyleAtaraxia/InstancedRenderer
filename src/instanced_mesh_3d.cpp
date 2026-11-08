@@ -1,8 +1,7 @@
 #include "instanced_mesh_3d.h"
-#include "instance_manager.h"
+#include "instance_manager_3d.h"
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
-#include <godot_cpp/variant/callable_method_pointer.hpp>
 #include <godot_cpp/core/class_db.hpp>
 
 namespace godot {
@@ -10,7 +9,7 @@ namespace godot {
 // Nodes left at the default follow the project setting; set ones are saved.
 InstancedMesh3D::InstancedMesh3D() {
   chunk_size = ProjectSettings::get_singleton()->get_setting(
-      InstanceManager::SETTING_DEFAULT_CHUNK_SIZE, 64.0);
+      InstanceManager3D::SETTING_DEFAULT_CHUNK_SIZE, 64.0);
 }
 
 void InstancedMesh3D::_bind_methods() {
@@ -83,28 +82,19 @@ void InstancedMesh3D::_notification(int p_what) {
   case NOTIFICATION_READY:
     // Kept in the editor so the scene stays editable.
     if (is_static && !Engine::get_singleton()->is_editor_hint()) {
-      renderer.unref();
-      instance_id = -1;
+      instance_id = -1; // the instance outlives the node
       queue_free();
     }
     break;
   case NOTIFICATION_TRANSFORM_CHANGED:
-    if (renderer.is_valid()) {
-      Transform3D t = get_global_transform();
-      if (sleeping) {
-        sleeping = false;
-        reregister(); // first tick snaps if interpolated
-      } else if (InstanceManager::get_cell(t.origin, chunk_size) != cell) {
-        reregister(); // first tick snaps if interpolated
-      } else {
-        renderer->update_instance(instance_id, t);
-        mark_moved();
-      }
+    if (instance_id >= 0) {
+      InstanceManager3D::get_singleton()->update_instance(instance_id,
+                                                          get_global_transform());
     }
     break;
   case NOTIFICATION_RESET_PHYSICS_INTERPOLATION:
-    if (renderer.is_valid()) {
-      renderer->reset_instance_interpolation(instance_id);
+    if (instance_id >= 0) {
+      InstanceManager3D::get_singleton()->reset_instance_interpolation(instance_id);
     }
     break;
   case NOTIFICATION_VISIBILITY_CHANGED:
@@ -117,30 +107,21 @@ void InstancedMesh3D::_notification(int p_what) {
 }
 
 void InstancedMesh3D::register_instance() {
-  if (mesh.is_null() || !is_visible_in_tree()) {
+  if (instance_id >= 0 || mesh.is_null() || !is_visible_in_tree()) {
     return;
   }
-  InstanceManager *manager = InstanceManager::get_singleton();
-  Transform3D t = get_global_transform();
-  cell = InstanceManager::get_cell(t.origin, chunk_size);
-  renderer = manager->get_renderer(
-      get_world_3d(),
-      InstanceManager::make_lod_levels(mesh, lods, visibility_range_end),
-      material, cell, chunk_size, cast_shadow, layers, is_static,
-      visibility_range_end, sleeping);
-  if (renderer.is_valid()) {
-    instance_id = renderer->add_instance(t);
-    if (!is_static && !sleeping) {
-      mark_moved(); // nodes that never move fall asleep too
-    }
-  }
+  InstanceManager3D *manager = InstanceManager3D::get_singleton();
+  Ref<InstanceDefinition3D> definition = manager->share_definition(
+      mesh, material, lods, cast_shadow, layers, visibility_range_end,
+      chunk_size);
+  instance_id = manager->add_instance(get_world_3d(), definition,
+                                      get_global_transform(), is_static);
 }
 
 void InstancedMesh3D::unregister_instance() {
-  if (renderer.is_valid()) {
-    renderer->remove_instance(instance_id);
+  if (instance_id >= 0) {
+    InstanceManager3D::get_singleton()->remove_instance(instance_id);
   }
-  renderer.unref();
   instance_id = -1;
 }
 
@@ -149,30 +130,6 @@ void InstancedMesh3D::reregister() {
     unregister_instance();
     register_instance();
   }
-}
-
-void InstancedMesh3D::mark_moved() {
-  last_moved_frame = Engine::get_singleton()->get_process_frames();
-  if (!sleep_watched && InstanceManager::get_singleton()->get_sleep_after_frames() > 0) {
-    sleep_watched = true;
-    InstanceManager::get_singleton()->watch_for_sleep(get_instance_id());
-  }
-}
-
-bool InstancedMesh3D::update_sleep(uint64_t now) {
-  int after = InstanceManager::get_singleton()->get_sleep_after_frames();
-  if (renderer.is_null() || is_static || sleeping || after <= 0) {
-    sleep_watched = false;
-    return true;
-  }
-  if (now - last_moved_frame < (uint64_t)after) {
-    return false;
-  }
-  // At rest there is nothing to interpolate, so switching batches can't pop.
-  sleeping = true;
-  sleep_watched = false;
-  reregister();
-  return true;
 }
 
 void InstancedMesh3D::set_mesh(const Ref<Mesh> &p_mesh) {
@@ -190,7 +147,6 @@ Ref<Material> InstancedMesh3D::get_material() const { return material; }
 
 void InstancedMesh3D::set_is_static(bool p_static) {
   is_static = p_static;
-  sleeping = false;
   reregister();
 }
 bool InstancedMesh3D::get_is_static() const { return is_static; }
@@ -221,22 +177,8 @@ real_t InstancedMesh3D::get_visibility_range_end() const {
   return visibility_range_end;
 }
 
-// Editing a level's mesh or distance in place only emits `changed`.
 void InstancedMesh3D::set_lods(const TypedArray<InstancedMeshLOD> &p_lods) {
-  Callable on_changed = callable_mp(this, &InstancedMesh3D::reregister);
-  for (int i = 0; i < lods.size(); i++) {
-    Ref<InstancedMeshLOD> lod = lods[i];
-    if (lod.is_valid() && lod->is_connected("changed", on_changed)) {
-      lod->disconnect("changed", on_changed);
-    }
-  }
   lods = p_lods;
-  for (int i = 0; i < lods.size(); i++) {
-    Ref<InstancedMeshLOD> lod = lods[i];
-    if (lod.is_valid() && !lod->is_connected("changed", on_changed)) {
-      lod->connect("changed", on_changed);
-    }
-  }
   reregister();
 }
 TypedArray<InstancedMeshLOD> InstancedMesh3D::get_lods() const { return lods; }

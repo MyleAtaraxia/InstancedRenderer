@@ -22,7 +22,7 @@ window/stretch/aspect="expand"
 
 [instanced_renderer]
 
-batching/default_chunk_size=128.0
+3d/default_chunk_size=128.0
 
 [physics]
 

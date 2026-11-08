@@ -2,7 +2,7 @@
 #include "godot_cpp/classes/editor_interface.hpp"
 #include "godot_cpp/classes/editor_selection.hpp"
 #include "godot_cpp/classes/project_settings.hpp"
-#include "instance_manager.h"
+#include "instance_settings.h"
 #include "instanced_node_2d.h"
 
 namespace godot {
@@ -23,7 +23,7 @@ void InstancedNode2DEditorPlugin::_notification(int p_what) {
 void InstancedNode2DEditorPlugin::_forward_canvas_force_draw_over_viewport(
     Control *p_viewport_control) {
   Color color = ProjectSettings::get_singleton()->get_setting(
-      InstanceManager::SETTING_GIZMO_COLOR, Color(1.0, 0.8, 0.2));
+      instance_settings::GIZMO_COLOR, Color(1.0, 0.8, 0.2));
   TypedArray<Node> nodes =
       EditorInterface::get_singleton()->get_selection()->get_selected_nodes();
   for (int i = 0; i < nodes.size(); i++) {

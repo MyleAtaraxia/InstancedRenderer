@@ -4,7 +4,7 @@
 #include "godot_cpp/classes/editor_interface.hpp"
 #include "godot_cpp/classes/project_settings.hpp"
 #include "godot_cpp/variant/callable_method_pointer.hpp"
-#include "instance_manager.h"
+#include "instance_settings.h"
 #include "instanced_mesh_3d.h"
 
 namespace godot {
@@ -14,7 +14,7 @@ InstancedMesh3DGizmoPlugin::InstancedMesh3DGizmoPlugin() { load_color(); }
 void InstancedMesh3DGizmoPlugin::load_color() {
   // Recreating a material under the same name replaces it.
   create_material("bounds", ProjectSettings::get_singleton()->get_setting(
-                                InstanceManager::SETTING_GIZMO_COLOR,
+                                instance_settings::GIZMO_COLOR,
                                 Color(1.0, 0.8, 0.2)));
 }
 

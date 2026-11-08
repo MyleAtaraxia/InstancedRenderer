@@ -1,43 +1,44 @@
 #include "instanced_renderer_3d.h"
 #include "godot_cpp/classes/rendering_server.hpp"
-#include "instance_manager.h"
-#include "godot_cpp/core/print_string.hpp"
+#include "instance_manager_3d.h"
 #include <algorithm>
-#include <godot_cpp/core/class_db.hpp>
+#include <cmath>
 
 namespace godot {
 
 static constexpr size_t PARTIAL_MAX_DIRTY = 16;
 static constexpr int PARTIAL_INTERPOLATED_DIVISOR = 32;
 
-void InstancedRenderer3D::_bind_methods() {
-  ClassDB::bind_method(D_METHOD("add_instance", "transform"),
-                       &InstancedRenderer3D::add_instance);
-  ClassDB::bind_method(D_METHOD("update_instance", "id", "transform"),
-                       &InstancedRenderer3D::update_instance);
-  ClassDB::bind_method(D_METHOD("update_instances", "ids", "transforms"),
-                       &InstancedRenderer3D::update_instances);
-  ClassDB::bind_method(D_METHOD("remove_instance", "id"),
-                       &InstancedRenderer3D::remove_instance);
-  ClassDB::bind_method(D_METHOD("reset_instance_interpolation", "id"),
-                       &InstancedRenderer3D::reset_instance_interpolation);
-  ClassDB::bind_method(D_METHOD("is_instance_valid", "id"),
-                       &InstancedRenderer3D::is_instance_valid);
-  ClassDB::bind_method(D_METHOD("is_interpolated"),
-                       &InstancedRenderer3D::is_interpolated);
-  ClassDB::bind_method(D_METHOD("get_instance_count"),
-                       &InstancedRenderer3D::get_instance_count);
-  ClassDB::bind_method(D_METHOD("clear_instances"),
-                       &InstancedRenderer3D::clear_instances);
-  ClassDB::bind_method(D_METHOD("set_estimated_instance_count", "count"),
-                       &InstancedRenderer3D::set_estimated_instance_count);
-}
-
-InstancedRenderer3D::InstancedRenderer3D() {
+InstancedRenderer3D::InstancedRenderer3D(
+    const Ref<World3D> &p_world, const Ref<InstanceDefinition3D> &p_definition,
+    const Vector3i &p_cell, bool p_frozen, int initial_capacity)
+    : world(p_world), definition(p_definition), cell(p_cell), frozen(p_frozen),
+      lods(p_definition->get_lod_levels()) {
+  real_t size = definition->get_chunk_size();
+  bounded = size > 0;
+  Vector3 margin = Vector3(1, 1, 1) * (size * CELL_MARGIN);
+  cell_lo = Vector3(cell) * size - margin;
+  cell_hi = Vector3(cell + Vector3i(1, 1, 1)) * size + margin;
   RenderingServer *rs = RenderingServer::get_singleton();
   multimesh = rs->multimesh_create();
   instance = rs->instance_create();
   rs->instance_set_base(instance, multimesh);
+  rs->multimesh_set_mesh(multimesh, lods[0].second.is_valid()
+                                        ? lods[0].second->get_rid()
+                                        : RID());
+  Ref<Material> material = definition->get_material();
+  rs->instance_geometry_set_material_override(
+      instance, material.is_valid() ? material->get_rid() : RID());
+  rs->instance_geometry_set_cast_shadows_setting(
+      instance,
+      (RenderingServer::ShadowCastingSetting)definition->get_cast_shadow());
+  rs->instance_set_layer_mask(instance, definition->get_layers());
+  // Godot measures this from the batch's bounds centre, not per instance.
+  rs->instance_geometry_set_visibility_range(
+      instance, 0, std::max<real_t>(definition->get_visibility_range_end(), 0),
+      0, 0, RenderingServer::VISIBILITY_RANGE_FADE_DISABLED);
+  rs->instance_set_scenario(instance, world->get_scenario());
+  reserve(initial_capacity);
 }
 
 InstancedRenderer3D::~InstancedRenderer3D() {
@@ -46,34 +47,8 @@ InstancedRenderer3D::~InstancedRenderer3D() {
   rs->free_rid(multimesh);
 }
 
-void InstancedRenderer3D::setup(const RID &p_scenario, const LodLevels &p_lods,
-                                const Ref<Material> &p_material,
-                                int cast_shadow, uint32_t layers, bool p_static,
-                                real_t visibility_range_end,
-                                int initial_capacity) {
-  scenario = p_scenario;
-  lods = p_lods;
-  material = p_material;
-  is_static = p_static;
-  RenderingServer *rs = RenderingServer::get_singleton();
-  rs->multimesh_set_mesh(multimesh, lods[0].second.is_valid()
-                                        ? lods[0].second->get_rid()
-                                        : RID());
-  rs->instance_geometry_set_material_override(
-      instance, material.is_valid() ? material->get_rid() : RID());
-  rs->instance_geometry_set_cast_shadows_setting(
-      instance, (RenderingServer::ShadowCastingSetting)cast_shadow);
-  rs->instance_set_layer_mask(instance, layers);
-  // Godot measures this from the batch's bounds centre, not per instance.
-  rs->instance_geometry_set_visibility_range(
-      instance, 0, std::max<real_t>(visibility_range_end, 0), 0, 0,
-      RenderingServer::VISIBILITY_RANGE_FADE_DISABLED);
-  rs->instance_set_scenario(instance, scenario);
-  set_estimated_instance_count(initial_capacity);
-}
-
 void InstancedRenderer3D::set_interpolation(bool p_interpolated, int quality) {
-  p_interpolated = p_interpolated && !is_static;
+  p_interpolated = p_interpolated && !frozen;
   RenderingServer *rs = RenderingServer::get_singleton();
   if (p_interpolated != interpolated) {
     interpolated = p_interpolated;
@@ -85,7 +60,7 @@ void InstancedRenderer3D::set_interpolation(bool p_interpolated, int quality) {
 
 void InstancedRenderer3D::flush() {
   flush_queued = false;
-  int count = (int)render_ids.size();
+  int count = get_instance_count();
   if (!full_dirty && dirty_slots.empty() && reset_slots.empty() &&
       uploaded_count == count) {
     return;
@@ -204,7 +179,7 @@ AABB InstancedRenderer3D::lods_aabb() const {
 }
 
 void InstancedRenderer3D::update_lod(const Vector3 &camera_position) {
-  if (render_ids.empty()) {
+  if (owners.empty()) {
     return;
   }
   real_t distance = camera_position.distance_to(bounds.get_center());
@@ -222,7 +197,7 @@ void InstancedRenderer3D::update_lod(const Vector3 &camera_position) {
 void InstancedRenderer3D::queue_flush() {
   if (!flush_queued) {
     flush_queued = true;
-    InstanceManager::get_singleton()->queue_flush(this);
+    InstanceManager3D::get_singleton()->queue_flush(this);
   }
 }
 
@@ -254,125 +229,60 @@ Transform3D InstancedRenderer3D::read_transform(int render_index) const {
                      r[3], r[7], r[11]);
 }
 
-int InstancedRenderer3D::slot_of(int64_t id) const {
-  int64_t slot = id & 0xFFFFFFFF;
-  uint32_t generation = (uint32_t)(id >> 32);
-  if (id < 0 || slot >= (int64_t)records.size() || !records[slot].active ||
-      records[slot].generation != generation) {
-    return -1;
-  }
-  return (int)slot;
-}
-
-bool InstancedRenderer3D::is_instance_valid(int64_t id) const {
-  return slot_of(id) >= 0;
-}
-
-int64_t InstancedRenderer3D::add_instance(const Transform3D &transform) {
-  int slot;
-  if (!free_ids.empty()) {
-    slot = free_ids.back();
-    free_ids.pop_back();
-  } else {
-    slot = (int)records.size();
-    records.emplace_back();
-  }
-
-  int render_index = (int)render_ids.size();
+int InstancedRenderer3D::add(int owner, const Transform3D &t) {
+  int render_index = get_instance_count();
   if (render_index >= capacity) {
-    set_estimated_instance_count(std::max(16, capacity * 2));
+    reserve(std::max(16, capacity * 2));
   }
-  render_ids.push_back(slot);
-  records[slot].render_index = render_index;
-  records[slot].active = true;
-  write_transform(render_index, transform);
+  owners.push_back(owner);
+  write_transform(render_index, t);
   mark_dirty(render_index, true);
-  return ((int64_t)records[slot].generation << 32) | slot;
+  return render_index;
 }
 
-void InstancedRenderer3D::update_instance(int64_t id,
-                                          const Transform3D &transform) {
-  int slot = slot_of(id);
-  if (slot < 0) {
-    print_error("update_instance: invalid or stale instance id ", id);
-    return;
-  }
-  int render_index = records[slot].render_index;
-  write_transform(render_index, transform);
+void InstancedRenderer3D::set_transform(int render_index, const Transform3D &t) {
+  write_transform(render_index, t);
   mark_dirty(render_index, false);
 }
 
-void InstancedRenderer3D::update_instances(
-    const PackedInt64Array &ids, const TypedArray<Transform3D> &transforms) {
-  ERR_FAIL_COND_MSG(transforms.size() != ids.size(),
-                    "update_instances: need one transform per id.");
-  const int64_t *id = ids.ptr();
-  int invalid = 0;
-  for (int64_t i = 0; i < ids.size(); i++) {
-    int slot = slot_of(id[i]);
-    if (slot < 0) {
-      invalid++;
-      continue;
-    }
-    int render_index = records[slot].render_index;
-    write_transform(render_index, transforms[i]);
-    mark_dirty(render_index, false);
-  }
-  if (invalid > 0) {
-    print_error("update_instances: skipped invalid or stale ids: ", invalid);
-  }
+void InstancedRenderer3D::set_origin(int render_index, const Vector3 &origin) {
+  float *w = buffer.ptrw() + render_index * FLOATS_PER_INSTANCE;
+  w[3] = origin.x;
+  w[7] = origin.y;
+  w[11] = origin.z;
+  mark_dirty(render_index, false);
 }
 
-void InstancedRenderer3D::remove_instance(int64_t id) {
-  int slot = slot_of(id);
-  if (slot < 0) {
-    print_error("remove_instance: invalid or stale instance id ", id);
-    return;
-  }
+void InstancedRenderer3D::set_packed(int render_index, const float *src) {
+  std::copy_n(src, FLOATS_PER_INSTANCE,
+              buffer.ptrw() + render_index * FLOATS_PER_INSTANCE);
+  mark_dirty(render_index, false);
+}
+
+int InstancedRenderer3D::remove(int render_index) {
   queue_flush();
+  int last = get_instance_count() - 1;
+  int moved = -1;
   // Swap-remove keeps the render buffer dense.
-  int index = records[slot].render_index;
-  int last = (int)render_ids.size() - 1;
-  if (index != last) {
+  if (render_index != last) {
     float *w = buffer.ptrw();
     std::copy_n(w + last * FLOATS_PER_INSTANCE, FLOATS_PER_INSTANCE,
-                w + index * FLOATS_PER_INSTANCE);
-    render_ids[index] = render_ids[last];
-    records[render_ids[index]].render_index = index;
+                w + render_index * FLOATS_PER_INSTANCE);
+    moved = owners[last];
+    owners[render_index] = moved;
     // Otherwise the moved instance would interpolate from the removed one.
-    mark_dirty(index, true);
+    mark_dirty(render_index, true);
   }
-  render_ids.pop_back();
-  records[slot].active = false;
-  records[slot].render_index = -1;
-  records[slot].generation++;
-  free_ids.push_back(slot);
+  owners.pop_back();
+  return moved;
 }
 
-void InstancedRenderer3D::reset_instance_interpolation(int64_t id) {
-  int slot = slot_of(id);
-  if (slot >= 0) {
-    reset_slots.push_back(records[slot].render_index);
-    queue_flush();
-  }
-}
-
-int InstancedRenderer3D::get_instance_count() const {
-  return (int)render_ids.size();
-}
-
-void InstancedRenderer3D::clear_instances() {
+void InstancedRenderer3D::reset_interpolation(int render_index) {
+  reset_slots.push_back(render_index);
   queue_flush();
-  for (int slot : render_ids) {
-    records[slot].active = false;
-    records[slot].render_index = -1;
-    records[slot].generation++; // invalidates outstanding ids
-    free_ids.push_back(slot);
-  }
-  render_ids.clear();
 }
 
-void InstancedRenderer3D::set_estimated_instance_count(int count) {
+void InstancedRenderer3D::reserve(int count) {
   if (count <= capacity) {
     return;
   }
@@ -380,8 +290,7 @@ void InstancedRenderer3D::set_estimated_instance_count(int count) {
   queue_flush();
   buffer.resize(capacity * FLOATS_PER_INSTANCE);
   slot_dirty.resize(capacity, 0);
-  records.reserve(capacity);
-  render_ids.reserve(capacity);
+  owners.reserve(capacity);
 }
 
 } // namespace godot

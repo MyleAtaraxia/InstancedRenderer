@@ -7,7 +7,7 @@
 #include "godot_cpp/core/print_string.hpp"
 #include "godot_cpp/variant/utility_functions.hpp"
 #include "godot_cpp/variant/callable_method_pointer.hpp"
-#include "instance_manager.h"
+#include "instance_settings.h"
 #include <algorithm>
 #include <godot_cpp/core/class_db.hpp>
 
@@ -23,6 +23,12 @@ void InstanceManager2D::_bind_methods() {
                        &InstanceManager2D::update_instance);
   ClassDB::bind_method(D_METHOD("update_instances", "ids", "transforms"),
                        &InstanceManager2D::update_instances);
+  ClassDB::bind_method(D_METHOD("update_instance_positions", "ids", "positions"),
+                       &InstanceManager2D::update_instance_positions);
+  ClassDB::bind_method(D_METHOD("update_instance_rotations", "ids", "rotations"),
+                       &InstanceManager2D::update_instance_rotations);
+  ClassDB::bind_method(D_METHOD("update_instances_packed", "ids", "transforms"),
+                       &InstanceManager2D::update_instances_packed);
   ClassDB::bind_method(D_METHOD("remove_instance", "id"),
                        &InstanceManager2D::remove_instance);
   ClassDB::bind_method(D_METHOD("reset_instance_interpolation", "id"),
@@ -36,11 +42,11 @@ void InstanceManager2D::_bind_methods() {
 }
 
 void InstanceManager2D::register_project_settings() {
-  add_setting(SETTING_DEFAULT_CHUNK_SIZE, 512.0, PROPERTY_HINT_RANGE,
+  instance_settings::add_setting(SETTING_DEFAULT_CHUNK_SIZE, 512.0, PROPERTY_HINT_RANGE,
               "0,4096,1,or_greater,suffix:px");
-  add_setting(SETTING_BAKE_STATIC, true);
+  instance_settings::add_setting(SETTING_BAKE_STATIC, true);
 #ifdef INSTANCED_2D_CANVAS_ECHO
-  add_setting(SETTING_CANVAS_ECHO, true);
+  instance_settings::add_setting(SETTING_CANVAS_ECHO, true);
 #endif
 }
 
@@ -79,9 +85,9 @@ InstanceManager2D::~InstanceManager2D() {
 
 void InstanceManager2D::load_settings() {
   ProjectSettings *ps = ProjectSettings::get_singleton();
-  interpolation_mode = ps->get_setting(InstanceManager::SETTING_INTERPOLATION_MODE, 0);
-  initial_capacity = ps->get_setting(InstanceManager::SETTING_INITIAL_CAPACITY, 16);
-  sleep_after_frames = ps->get_setting(InstanceManager::SETTING_SLEEP_AFTER_FRAMES, 60);
+  interpolation_mode = ps->get_setting(instance_settings::INTERPOLATION_MODE, 0);
+  initial_capacity = ps->get_setting(instance_settings::INITIAL_CAPACITY, 16);
+  sleep_after_frames = ps->get_setting(instance_settings::SLEEP_AFTER_FRAMES, 60);
 #ifdef INSTANCED_2D_CANVAS_ECHO
   canvas_echo = ps->get_setting(SETTING_CANVAS_ECHO, true);
 #endif
@@ -92,15 +98,7 @@ void InstanceManager2D::load_settings() {
 }
 
 bool InstanceManager2D::should_interpolate() const {
-  if (Engine::get_singleton()->is_editor_hint()) {
-    return false; // the editor never runs physics interpolation
-  }
-  if (interpolation_mode == InstanceManager::INTERPOLATION_DISABLED) {
-    return false;
-  }
-  SceneTree *tree =
-      Object::cast_to<SceneTree>(Engine::get_singleton()->get_main_loop());
-  return tree && tree->is_physics_interpolation_enabled();
+  return instance_settings::should_interpolate(interpolation_mode);
 }
 
 // Lazy: the RenderingServer and SceneTree don't exist yet at extension init.
@@ -323,6 +321,75 @@ void InstanceManager2D::update_instances(const PackedInt64Array &ids,
   }
   if (invalid > 0) {
     print_error("update_instances: skipped invalid or stale ids: ", invalid);
+  }
+}
+
+void InstanceManager2D::update_instance_positions(
+    const PackedInt64Array &ids, const PackedVector2Array &positions) {
+  ERR_FAIL_COND_MSG(positions.size() != ids.size(),
+                    "update_instance_positions: need one position per id.");
+  const int64_t *id = ids.ptr();
+  const Vector2 *pos = positions.ptr();
+  int invalid = 0;
+  for (int64_t i = 0; i < ids.size(); i++) {
+    int index = slot_of(id[i]);
+    if (index < 0) {
+      invalid++;
+      continue;
+    }
+    const Slot &slot = slots[index];
+    Transform2D t = slot.renderer->read_transform(slot.render_index);
+    t.set_origin(pos[i]);
+    update_slot(index, t);
+  }
+  if (invalid > 0) {
+    print_error("update_instance_positions: skipped invalid or stale ids: ",
+                invalid);
+  }
+}
+
+void InstanceManager2D::update_instance_rotations(
+    const PackedInt64Array &ids, const PackedFloat32Array &rotations) {
+  ERR_FAIL_COND_MSG(rotations.size() != ids.size(),
+                    "update_instance_rotations: need one rotation per id.");
+  const int64_t *id = ids.ptr();
+  const float *rot = rotations.ptr();
+  int invalid = 0;
+  for (int64_t i = 0; i < ids.size(); i++) {
+    int index = slot_of(id[i]);
+    if (index < 0) {
+      invalid++;
+      continue;
+    }
+    const Slot &slot = slots[index];
+    Transform2D t = slot.renderer->read_transform(slot.render_index);
+    t.set_rotation(rot[i]);
+    update_slot(index, t);
+  }
+  if (invalid > 0) {
+    print_error("update_instance_rotations: skipped invalid or stale ids: ",
+                invalid);
+  }
+}
+
+void InstanceManager2D::update_instances_packed(
+    const PackedInt64Array &ids, const PackedFloat32Array &transforms) {
+  ERR_FAIL_COND_MSG(transforms.size() != ids.size() * 8,
+                    "update_instances_packed: need 8 floats per id.");
+  const int64_t *id = ids.ptr();
+  const float *r = transforms.ptr();
+  int invalid = 0;
+  for (int64_t i = 0; i < ids.size(); i++, r += 8) {
+    int index = slot_of(id[i]);
+    if (index < 0) {
+      invalid++;
+      continue;
+    }
+    update_slot(index, Transform2D(r[0], r[4], r[1], r[5], r[3], r[7]));
+  }
+  if (invalid > 0) {
+    print_error("update_instances_packed: skipped invalid or stale ids: ",
+                invalid);
   }
 }
 

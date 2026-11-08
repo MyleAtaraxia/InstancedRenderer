@@ -29,15 +29,28 @@ in the same chunk share one draw call.
 - `lods`: `InstancedMeshLOD` entries (`mesh`, `distance`); `mesh` is level 0.
 - `visibility_range_end`: stop drawing beyond this distance.
 
-Without nodes:
+Without nodes, through `InstanceManager3D` (or `InstanceManager2D` with
+`InstanceDefinition2D`, `Transform2D` and `Vector2`; the methods match, except
+that 2D `add_instance` takes a parent `CanvasItem` where 3D takes a `World3D`).
+3D transforms are in world space, 2D ones relative to the parent. Instances
+added this way must be removed.
 
 ```gdscript
-var r := InstanceManager.get_renderer(get_world_3d(), mesh)
-var id := r.add_instance(transform)
-r.update_instance(id, new_transform)
-r.remove_instance(id)
+var definition := InstanceDefinition3D.new()
+definition.mesh = mesh
+var id := InstanceManager3D.add_instance(get_world_3d(), definition, transform)
+InstanceManager3D.update_instance(id, new_transform)
+InstanceManager3D.remove_instance(id)
 ```
 
-Project settings are under `instanced_renderer/`.
+Bulk updates take a `PackedInt64Array` of ids:
+
+- `update_instances(ids, transforms)`: one `Transform3D` per id.
+- `update_instance_positions(ids, positions)`: `PackedVector3Array`; keeps rotation and scale. The fastest.
+- `update_instance_rotations(ids, rotations)`: Euler radians (YXZ, like `Node3D.rotation`); keeps position and scale.
+- `update_instances_packed(ids, floats)`: 12 floats per id in MultiMesh `TRANSFORM_3D` order.
+
+Project settings are under `instanced_renderer/`; chunk sizes are
+`instanced_renderer/2d/default_chunk_size` and `instanced_renderer/3d/default_chunk_size`.
 
 ![InstancedRenderer3D screenshot](assets/screenshot.webp)

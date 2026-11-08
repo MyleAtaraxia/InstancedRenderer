@@ -73,6 +73,8 @@ func run() -> void:
 	await test_culling()
 	await test_tall_sprite()
 	await test_ids()
+	await test_positions_rotations_packed(false)
+	await test_positions_rotations_packed(true)
 	await test_toggle_and_parent_free()
 	await test_sleep()
 	await test_swap_remove_does_not_blink()
@@ -208,6 +210,35 @@ func test_ids() -> void:
 	InstanceManager2D.update_instances(ids, transforms)
 	await frames()
 	check(is_color(pixel(Vector2(400, 300)), RED), "update_instances applies the transform")
+	parent.free()
+	await frames()
+
+
+# A 40 x 8 bar scaled 2x along x, so rotation and scale show on screen.
+func test_positions_rotations_packed(y_sorted: bool) -> void:
+	var parent := new_parent()
+	var d := definition(solid(Vector2i(40, 8), RED), y_sorted)
+	var stretched := Transform2D(0, Vector2(2, 1), 0, Vector2(200, 200))
+	var ids := PackedInt64Array([InstanceManager2D.add_instance(parent, d, stretched)])
+	var mode := "y_sorted" if y_sorted else "chunked"
+	await frames()
+	check(is_color(pixel(Vector2(235, 200)), RED), "%s: scaled bar reaches x + 35" % mode)
+
+	InstanceManager2D.update_instance_rotations(ids, PackedFloat32Array([PI / 2]))
+	await frames()
+	check(is_color(pixel(Vector2(200, 235)), RED), "%s: rotation turns it upright, scale kept" % mode)
+	check(is_color(pixel(Vector2(235, 200)), CLEAR), "%s: nothing left along x" % mode)
+
+	InstanceManager2D.update_instance_positions(ids, PackedVector2Array([Vector2(300, 200)]))
+	await frames()
+	check(is_color(pixel(Vector2(300, 235)), RED), "%s: positions keep rotation and scale" % mode)
+	check(is_color(pixel(Vector2(200, 235)), CLEAR), "%s: positions move the origin" % mode)
+
+	# x.x, y.x, 0, origin.x, x.y, y.y, 0, origin.y: identity at (400, 200).
+	InstanceManager2D.update_instances_packed(ids, PackedFloat32Array([1, 0, 0, 400, 0, 1, 0, 200]))
+	await frames()
+	check(is_color(pixel(Vector2(415, 200)), RED), "%s: packed sets the whole transform" % mode)
+	check(is_color(pixel(Vector2(400, 215)), CLEAR), "%s: packed replaces rotation and scale" % mode)
 	parent.free()
 	await frames()
 
